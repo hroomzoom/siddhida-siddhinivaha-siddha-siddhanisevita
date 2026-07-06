@@ -4,6 +4,7 @@
 #include <string>
 #include <curl/curl.h>
 #include <unordered_set>
+#include <vector>
 
 #define DATA_SIZE 1024
 #define MAX_TICKERS 1000
@@ -11,13 +12,11 @@
 
 using namespace std;
 
-typedef struct candle
-{
+typedef struct candle{
     float open;
     float high;
     float low;
     float close;
-
 }candle;
 
 class restAPIHandler
@@ -26,14 +25,21 @@ class restAPIHandler
         restAPIHandler();
         ~restAPIHandler();
         void getTickers(int lim);
+        void getCandles(const string forexTicker, 
+                        int multipler, 
+                        const string timespan, 
+                        const string from, 
+                        const string to,
+                        int limit);
         string getRequest(const string url);
+        void printCandles(void);
         //string postRequest(const string url);
         
     private:
         CURL *curl;
         CURLcode res;
         string apiKey;
-        candle candleData[DATA_SIZE];
+        vector<candle> candleData;
         unordered_set<string> tickers;
 };
 
