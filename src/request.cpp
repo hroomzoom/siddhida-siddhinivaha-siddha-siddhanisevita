@@ -17,8 +17,7 @@ static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *use
 restAPIHandler::restAPIHandler()
 {
     // get local api key from env
-    //apiKey = getenv("API_KEY");
-    apiKey = "MGrooA1F98ULrG5cW5xXhtB4jFfn3Ip0";
+    apiKey = getenv("API_KEY");
 
     // init curl module
     curl_global_init(CURL_GLOBAL_DEFAULT);
