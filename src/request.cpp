@@ -3,12 +3,26 @@
 #include <cstring>
 #include <string>
 #include <cstdlib>
+#include <cstdint>
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
+#include <unordered_set>
+#include "timeFunctions.h"
+
 
 using namespace std;
 using json = nlohmann::json;
 
+static unordered_set<string> timeSpanSet = {
+    "second",
+    "minute",
+    "hour",
+    "day",
+    "week",
+    "month",
+    "quarter",
+    "year"
+};
 
 // local functions declarations
 static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp);
@@ -16,8 +30,8 @@ static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *use
 // member functions
 restAPIHandler::restAPIHandler()
 {
-    // get local api key from env
-    apiKey = getenv("API_KEY");
+    //apiKey = "Vfc3khLpzUV12bEzeB59W2tWoEi9ir3U";
+    apiKey = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
 
     // init curl module
     curl_global_init(CURL_GLOBAL_DEFAULT);
@@ -101,26 +115,28 @@ void restAPIHandler::getCandles(const string forexTicker,
                                 int limit){
 
     int i = 0;
-    char urlBuffer[500];
     string response;
     string open, close, high, low;
     json candleJson;
     json::iterator it;
 
+    // ensure in ticker list
     assert(tickers.find(forexTicker) != tickers.end());
+    assert(timeSpanSet.find(timespan) != timeSpanSet.end());
 
-    // build query url
-    i += sprintf(urlBuffer, "%sv2/aggs/ticker/", BASE_ENDPOINT);
-    i += sprintf((urlBuffer + i), "%s/", forexTicker.c_str());
-    i += sprintf((urlBuffer + i), "range/%d/%s/", multipler, timespan.c_str());
-    i += sprintf((urlBuffer + i), "%s/%s/", from.c_str(), to.c_str());
-    i += sprintf((urlBuffer + i), "?adjusted=true&sort=asc&limit=%d&", limit);
-    i += sprintf((urlBuffer + i), "apiKey=%s&", apiKey.c_str());
+    // convert from and to times to timestamps
+    int64_t fromTimeStamp =  utcToUnixMilliseconds(from);
+    int64_t toTimeStamp =  utcToUnixMilliseconds(to);
 
-    string url = "https://api.massive.com/v2/aggs/ticker/C:EURUSD/range/1/day/2025-11-03/2025-11-28?adjusted=true&sort=asc&limit=120&apiKey=MGrooA1F98ULrG5cW5xXhtB4jFfn3Ip0";
+    string urlString = BASE_ENDPOINT + (string)"v2/aggs/ticker/" +
+                       forexTicker + '/' +                           
+                       (string)"range/" + to_string(multipler) + '/' + timespan + '/' +
+                       to_string(fromTimeStamp) + '/' + to_string(toTimeStamp) + '/' +
+                       (string)"?adjusted=true&sort=asc&limit=" + to_string(limit) + '&' +
+                       (string)"apiKey=" + apiKey ;
 
     // get and parse json response
-    response = restAPIHandler::getRequest(url);
+    response = restAPIHandler::getRequest(urlString);
     candleJson = json::parse(response.c_str());
     candle currentCandle;
 
