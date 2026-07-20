@@ -30,7 +30,7 @@ static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *use
 // member functions
 restAPIHandler::restAPIHandler()
 {
-    //apiKey = "Vfc3khLpzUV12bEzeB59W2tWoEi9ir3U";
+    //insert api key here
     apiKey = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
 
     // init curl module
