@@ -1,5 +1,6 @@
 #include "request.h"
 #include <iostream>
+#include <fstream>
 #include <cstring>
 #include <string>
 #include <cstdlib>
@@ -28,22 +29,21 @@ static unordered_set<string> timeSpanSet = {
 static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp);
 
 // member functions
-restAPIHandler::restAPIHandler()
+restAPIHandler::restAPIHandler(string &apiKeyStr)
+: apiKey(apiKeyStr)
 {
-    //insert api key here
-    apiKey = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
-
-    // init curl module
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-
-    // get tickers
-    getTickers(MAX_TICKERS);
-
+    //curl_global_init(CURL_GLOBAL_DEFAULT);
+    getTickers();
 }
 
 restAPIHandler::~restAPIHandler()
 {
     curl_global_cleanup();
+}
+
+void restAPIHandler::setApiKey(const string apiKeyStr){
+
+    apiKey = apiKeyStr;
 }
 
 string restAPIHandler::getRequest(const string url)
@@ -70,41 +70,67 @@ string restAPIHandler::getRequest(const string url)
     return responseStr;
 }
 
-void restAPIHandler::getTickers(int lim){
+void restAPIHandler::getTickers(void){
     
-    assert(lim > 0 && lim <= MAX_TICKERS);
     
     int i = 0;
     char urlBuffer[500];
     string response;
     json jsonResponse;
     json::iterator it;
-    string market, active, order, limit, sort;
 
-    // set up query parameters
-    market = "fx";
-    active = "true";
-    order = "asc";
-    limit = to_string(lim);
-    sort = "ticker";
-
-    // build query url
-    i += sprintf(urlBuffer, "%sv3/reference/tickers?", BASE_ENDPOINT);
-    i += sprintf((urlBuffer + i), "market=%s&", market.c_str());
-    i += sprintf((urlBuffer + i), "active=%s&", active.c_str());
-    i += sprintf((urlBuffer + i), "order=%s&", order.c_str());
-    i += sprintf((urlBuffer + i), "limit=%s&", limit.c_str());
-    i += sprintf((urlBuffer + i), "sort=%s&", sort.c_str());
-    i += sprintf((urlBuffer + i), "apiKey=%s&", apiKey.c_str());
-
+    // Get Fx fxTickers
     // get and parse json response
-    response = restAPIHandler::getRequest(urlBuffer);
+    string requestURL = "https://api.massive.com/v3/reference/tickers?market=fx&active=true&order=asc&limit=1000&sort=ticker&apiKey=" + apiKey;
+    response = restAPIHandler::getRequest(requestURL);
     jsonResponse = json::parse(response.c_str());
    
     // fill ticker set container
     for (it = jsonResponse["results"].begin(); it != jsonResponse["results"].end(); ++it) {
-        tickers.insert((*it)["ticker"]); 
+        fxTickers.insert((*it)["ticker"]); 
     }
+
+    // Get Cryto fxTickers
+    // get and parse json response
+    response = restAPIHandler::getRequest("https://api.massive.com/v3/reference/tickers?market=crypto&active=true&order=asc&limit=1000&sort=ticker&apiKey=" + apiKey);
+    jsonResponse = json::parse(response.c_str());
+   
+    // fill ticker set container
+    for (it = jsonResponse["results"].begin(); it != jsonResponse["results"].end(); ++it) {
+        cryptoTickers.insert((*it)["ticker"]); 
+    }
+}
+
+void restAPIHandler::writeCrytoInstrToFile(void){
+
+    std::ofstream writeFile("cryptos.txt");
+
+    if (!writeFile.is_open()) {
+        cerr << "Error: Could not open the file!" << std::endl;
+        return;
+    }
+
+    for(auto &instr: cryptoTickers){
+        writeFile << instr << endl;
+    }
+}
+
+void restAPIHandler::writeForexInstrToFile(void){
+
+    std::ofstream writeFile("instruments.txt");
+
+    if (!writeFile.is_open()) {
+        cerr << "Error: Could not open the file!" << std::endl;
+        return;
+    }
+
+    for(auto &instr: fxTickers){
+        writeFile << instr << endl;
+    }
+}
+
+bool restAPIHandler::validForexInstrument(const string &fxInstrument){
+    return fxTickers.find(fxInstrument) != fxTickers.end();
 }
 
 void restAPIHandler::getCandles(const string forexTicker, 
@@ -119,10 +145,6 @@ void restAPIHandler::getCandles(const string forexTicker,
     string open, close, high, low;
     json candleJson;
     json::iterator it;
-
-    // ensure in ticker list
-    assert(tickers.find(forexTicker) != tickers.end());
-    assert(timeSpanSet.find(timespan) != timeSpanSet.end());
 
     // convert from and to times to timestamps
     int64_t fromTimeStamp =  utcToUnixMilliseconds(from);
@@ -142,26 +164,80 @@ void restAPIHandler::getCandles(const string forexTicker,
 
     for(auto &candle: candleJson["results"] ){
 
+        currentCandle.time = candle["t"];
         currentCandle.open = candle["o"];
         currentCandle.high = candle["h"];
         currentCandle.low = candle["l"];
         currentCandle.close = candle["c"];
+        currentCandle.volume = candle["v"];
 
         candleData.push_back(currentCandle);
     }
 }
 
+candle restAPIHandler::getSingleCandle(const string forexTicker, 
+                                int multipler, 
+                                const string timespan, 
+                                const string from, 
+                                const string to){
+
+    int i = 0;
+    string response;
+    string open, close, high, low;
+    json candleJson;
+    json::iterator it;
+
+    // convert from and to times to timestamps
+    int64_t fromTimeStamp =  utcToUnixMilliseconds(from);
+    int64_t toTimeStamp =  utcToUnixMilliseconds(to);
+
+    string urlString = BASE_ENDPOINT + (string)"v2/aggs/ticker/" +
+                       forexTicker + '/' +                           
+                       (string)"range/" + to_string(multipler) + '/' + timespan + '/' +
+                       to_string(fromTimeStamp) + '/' + to_string(toTimeStamp) + '/' +
+                       (string)"?adjusted=true&sort=asc&" +
+                       (string)"apiKey=" + apiKey ;
+
+    // get and parse json response
+    response = restAPIHandler::getRequest(urlString);
+    candleJson = json::parse(response.c_str());
+    candle currentCandle;
+
+    for(auto &candle: candleJson["results"] ){
+
+        currentCandle.time = candle["t"];
+        currentCandle.open = candle["o"];
+        currentCandle.high = candle["h"];
+        currentCandle.low = candle["l"];
+        currentCandle.close = candle["c"];
+        currentCandle.volume = candle["v"];
+    }
+
+    return currentCandle;
+}
+
+void printCandle(candle &c){
+    
+    cout << "time: " << c.time << endl;
+    cout << "open: " << c.open << endl;
+    cout << "high: " << c.high << endl;
+    cout << "low: " << c.low << endl;
+    cout << "close: " << c.close << endl;
+    cout << "volume: " << c.volume << endl;
+
+}
+
 void restAPIHandler::printCandles(void){
 
     for(auto &candle: candleData){
+        cout << "time: " << candle.time << endl;
         cout << "open: " << candle.open << endl;
         cout << "high: " << candle.high << endl;
         cout << "low: " << candle.low << endl;
         cout << "close: " << candle.close << endl;
-        cout << endl;
+        cout << "volume: " << candle.volume << endl;
         cout << endl;
     }
-
 }
 
 // local function definitions
