@@ -30,9 +30,9 @@ int main(int argc, char **argv){
     bool inValidArgs = false;
 
     // validate arg count
-    if(argc != 9){
+    if(argc != 11){
         cout << "Invalid arguments.\n";
-        cout << "Usage: ./rest -t <HH:mm:ss> -i C:<FxPair> -m <Multipier> -s <TimeScale>\n";
+        cout << "Usage: ./rest -t <HH:mm:ss> -i C:<FxPair> -m <Multipier> -s <TimeScale> -a <apiKey>\n";
         return EXIT_FAILURE;
     }
 
@@ -61,7 +61,8 @@ int main(int argc, char **argv){
     }
 
     // rest api variables
-    string apiKey = getApiKey();
+    //string apiKey = getApiKey();
+    string apiKey = argv[10];
     restAPIHandler rHandler(apiKey);
 
     rHandler.writeForexInstrToFile();
