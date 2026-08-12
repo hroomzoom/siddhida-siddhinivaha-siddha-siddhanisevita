@@ -17,23 +17,27 @@ def initClient() -> RESTClient:
     client = RESTClient(api_key=API_KEY)
     return client
 
-def getInitialCandle(client: RESTClient, multiplier:int, timespan:str) -> Candle:
+def getInitialCandle(instrument:str, multiplier:int, timespan:str):
+
+    with open("../apiKey.txt", "r") as file:
+        API_KEY = file.read().strip()
+    client = RESTClient(api_key=API_KEY)
 
     easternTimeZone = ZoneInfo("America/New_York")
     nowEST = datetime.now(easternTimeZone)
    
-    if timedelta == "minute": 
+    if timespan == "minute": 
         nowEST = nowEST.replace(second=0, microsecond=0)
         nowEST -= timedelta(minutes=nowEST.minute % multiplier)
 
-    if timedelta == "hour":
+    if timespan == "hour":
         nowEST = nowEST.replace(minute=0, second=0, microsecond=0)
         nowEST -= timedelta(hours=nowEST.hour % multiplier)
 
     timestamp = int(nowEST.timestamp() * 1000)
 
     candles = client.get_aggs(
-        ticker="C:EURUSD",
+        ticker=instrument,
         multiplier=multiplier,
         timespan=timespan,
         from_=str(timestamp),
@@ -44,7 +48,9 @@ def getInitialCandle(client: RESTClient, multiplier:int, timespan:str) -> Candle
                            candles[0].low, 
                            candles[0].close, 
                            candles[0].timestamp)
+    
     return initialCandle
+    
 
 def FindBullishFairValueGap(triCandle:list[Candle], threshold:float) -> bool:
 
